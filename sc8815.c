@@ -95,9 +95,19 @@ int sc8815_hw_config(sc8815_chip *chip) {
   // fb_sel set
 
   // clear bits
-  ctrl1_st c1_mask = {.fb_sel = 1};
+  ctrl1_st c1_mask = {.dis_ovp = 1,
+                      .trickle_set = 1,
+                      .fb_sel = 1,
+                      .dis_term = 1,
+                      .dis_trickle = 1,
+                      .ichar_sel = 1};
   // set fb_sel bit
-  ctrl1_st c1 = {.fb_sel = FB_SEL, .ichar_sel = 0};
+  ctrl1_st c1 = {.dis_ovp = 0,
+                 .trickle_set = 0,
+                 .fb_sel = FB_SEL,
+                 .dis_term = 0,
+                 .dis_trickle = 0,
+                 .ichar_sel = 0};
   ret |= sc8815_reg_mask_value(chip, REG_CTRL1_SET, c1_mask.val, c1.val);
 
   ratio_st ratio_mask = {
