@@ -55,8 +55,8 @@
 #error "Unkown vinreg ratio."
 #endif
 
-static int sc8815_reg_mask_value(sc8815_chip *chip, uint8_t reg, uint8_t mask,
-                                 uint8_t val) {
+static inline int sc8815_reg_mask_value(sc8815_chip *chip, uint8_t reg,
+                                        uint8_t mask, uint8_t val) {
   int ret;
   uint8_t rv = 0;
   if ((ret = chip->ops->i2c_read(chip->slave_addr, reg, &rv, 1)) != 0) {
@@ -72,21 +72,20 @@ static int sc8815_reg_mask_value(sc8815_chip *chip, uint8_t reg, uint8_t mask,
   return ret;
 }
 
-static int sc8815_clear_bits(sc8815_chip *chip, uint8_t reg, uint8_t mask) {
-  return sc8815_reg_mask_value(chip, reg, mask, 0);
-}
+#define sc8815_clear_bits(_chip, _reg, _mask)                                  \
+  sc8815_reg_mask_value(_chip, _reg, _mask, 0)
 
-static int sc8815_set_bits(sc8815_chip *chip, uint8_t reg, uint8_t bits) {
-  return sc8815_reg_mask_value(chip, reg, 0, bits);
-}
+#define sc8815_set_bits(_chip, _reg, _bits)                                    \
+  sc8815_reg_mask_value(_chip, _reg, 0, _bits)
 
 int sc8815_hw_config(sc8815_chip *chip) {
   int ret = 0;
   sc8815_enable(chip, true);
   sc8815_power_switch(chip, false);
 
-  ret |= sc8815_battery_setup(chip, 0, true, CONFIG_BATTERY_CELL_COUNT,
-                              CONFIG_BATTERY_VOLTAGE);
+  ret |=
+      sc8815_battery_setup(chip, BAT_IR_0_mR, true, CONFIG_BATTERY_CELL_COUNT,
+                           CONFIG_BATTERY_VOLTAGE);
 
   ctrl0_st c0_mask = {.vinreg_ratio = 1};
   ctrl0_st c0 = {.vinreg_ratio = CONFIG_VINREG_RATIO};
@@ -169,7 +168,8 @@ void sc8815_power_switch(sc8815_chip *chip, bool on) {
 #define calc_ref_voltage(_v1, _v2, _ratio)                                     \
   (uint32_t)((4 * (_v1) + ((_v2) >> 6) + 1) * 2 * (_ratio))
 
-int sc8815_get_internal_bus_ref_voltage(sc8815_chip *chip, uint16_t *vol) {
+static inline int sc8815_get_internal_bus_ref_voltage(sc8815_chip *chip,
+                                                      uint16_t *vol) {
   uint8_t v1, v2;
   int ret;
 
@@ -196,7 +196,8 @@ int sc8815_get_internal_bus_ref_voltage(sc8815_chip *chip, uint16_t *vol) {
     (_v2) = (_tmp & 0x3) << 6;                                                 \
   }
 
-int sc8815_set_internal_bus_ref_voltage(sc8815_chip *chip, uint16_t vol) {
+static inline int sc8815_set_internal_bus_ref_voltage(sc8815_chip *chip,
+                                                      uint16_t vol) {
   uint8_t v1, v2;
   int ret;
 
@@ -215,7 +216,8 @@ int sc8815_set_internal_bus_ref_voltage(sc8815_chip *chip, uint16_t vol) {
 }
 
 // fb_sel=1
-int sc8815_get_external_bus_ref_voltage(sc8815_chip *chip, uint16_t *vol) {
+static inline int sc8815_get_external_bus_ref_voltage(sc8815_chip *chip,
+                                                      uint16_t *vol) {
 
   uint8_t v1, v2;
   int ret;
@@ -236,7 +238,8 @@ int sc8815_get_external_bus_ref_voltage(sc8815_chip *chip, uint16_t *vol) {
   return 0;
 }
 
-int sc8815_set_external_bus_ref_voltage(sc8815_chip *chip, uint16_t vol) {
+static inline int sc8815_set_external_bus_ref_voltage(sc8815_chip *chip,
+                                                      uint16_t vol) {
   uint8_t v1, v2;
   int ret;
 
@@ -252,6 +255,22 @@ int sc8815_set_external_bus_ref_voltage(sc8815_chip *chip, uint16_t vol) {
     return ret;
   }
   return 0;
+}
+
+int sc8815_get_bus_out_voltage(sc8815_chip *chip, uint16_t *vol) {
+#if (CONFIG_EXTERNAL_VBUS == 0)
+  return sc8815_get_internal_bus_ref_voltage(chip, vol);
+#else
+  return sc8815_get_external_bus_ref_voltage(chip, vol);
+#endif
+}
+
+int sc8815_set_bus_out_voltage(sc8815_chip *chip, uint16_t vol) {
+#if (CONFIG_EXTERNAL_VBUS == 0)
+  return sc8815_set_internal_bus_ref_voltage(chip, vol);
+#else
+  return sc8815_set_external_bus_ref_voltage(chip, vol);
+#endif
 }
 
 int sc8815_get_vinreg_voltage(sc8815_chip *chip, uint16_t *vol) {
@@ -304,6 +323,9 @@ int sc8815_get_bus_current_limit(sc8815_chip *chip, uint16_t *cur) {
 int sc8815_set_bus_current_limit(sc8815_chip *chip, uint16_t cur) {
   uint8_t i;
   int ret;
+  if (cur < 500) {
+    cur = 500;
+  }
 
   i = convert_current_limit(cur, IBUS_RATIO, CONFIG_BUS_SENSE_RESISTOR);
 
@@ -333,6 +355,10 @@ int sc8815_get_bat_current_limit(sc8815_chip *chip, uint16_t *cur) {
 int sc8815_set_bat_current_limit(sc8815_chip *chip, uint16_t cur) {
   uint8_t i;
   int ret;
+
+  if (cur < 500) {
+    cur = 500;
+  }
 
   i = convert_current_limit(cur, IBAT_RATIO, CONFIG_BAT_SENSE_RESISTOR);
 
@@ -431,18 +457,18 @@ uint16_t sc8815_read_adin_voltage(sc8815_chip *chip) {
   return 0;
 }
 
-void sc8815_otg_enable(sc8815_chip *chip, bool discharging) {
+void sc8815_otg_enable(sc8815_chip *chip, bool discharge) {
   ctrl0_st c0 = {.en_otg = 1};
-  if (discharging) {
+  if (discharge) {
     sc8815_set_bits(chip, REG_CTRL0_SET, c0.val);
   } else {
     sc8815_clear_bits(chip, REG_CTRL0_SET, c0.val);
   }
 }
 
-void sc8815_en_pfm(sc8815_chip *chip, bool pfm) {
+void sc8815_pfm_enable(sc8815_chip *chip, bool enable) {
   ctrl3_st c3 = {.en_pfm = 1};
-  if (pfm) {
+  if (enable) {
     sc8815_set_bits(chip, REG_CTRL3_SET, c3.val);
   } else {
     sc8815_clear_bits(chip, REG_CTRL3_SET, c3.val);
@@ -476,7 +502,7 @@ void sc8815_pgate_switch(sc8815_chip *chip, bool on) {
   }
 }
 
-void sc8815_dis_ovp_enable(sc8815_chip *chip, bool enable) {
+void sc8815_ovp_enable(sc8815_chip *chip, bool enable) {
   ctrl1_st c1 = {.dis_ovp = 1};
   if (enable) {
     sc8815_clear_bits(chip, REG_CTRL3_SET, c1.val);

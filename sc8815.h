@@ -15,10 +15,6 @@
 #define CONFIG_BUS_SENSE_RESISTOR 5 /*mR*/
 #endif
 
-#ifndef CONFIG_EXTERNAL_VBUS
-#define CONFIG_EXTERNAL_VBUS 0
-#endif
-
 #ifndef CONFIG_BATTERY_CELL_COUNT
 #define CONFIG_BATTERY_CELL_COUNT 3 /*4s*/
 #endif
@@ -47,12 +43,21 @@
 #define CONFIG_VINREG_RATIO 0 /*100x*/
 #endif
 
+#ifndef CONFIG_EXTERNAL_VBUS
+#define CONFIG_EXTERNAL_VBUS 0
+#endif
+
+
+#if(CONFIG_EXTERNAL_VBUS==1)
+
 #ifndef CONFIG_FB_RESISTOR_UP
 #define CONFIG_FB_RESISTOR_UP 1000 /*R*/
 #endif
 
 #ifndef CONFIG_FB_RESISTOR_DOWN
 #define CONFIG_FB_RESISTOR_DOWN 1000 /*R*/
+#endif
+
 #endif
 
 
@@ -254,13 +259,10 @@ int sc8815_battery_setup(sc8815_chip *chip, ir_compensation ircomp,
                          battery_voltage voltage);
 
 
-int sc8815_get_internal_bus_ref_voltage(sc8815_chip *chip, uint16_t *vol);
+int sc8815_get_bus_out_voltage(sc8815_chip *chip, uint16_t *vol);
 
-int sc8815_set_internal_bus_ref_voltage(sc8815_chip *chip, uint16_t vol);
+int sc8815_set_bus_out_voltage(sc8815_chip *chip, uint16_t vol);
 
-int sc8815_get_external_bus_ref_voltage(sc8815_chip *chip, uint16_t *vol);
-
-int sc8815_set_external_bus_ref_voltage(sc8815_chip *chip, uint16_t vol);
 
 int sc8815_get_vinreg_voltage(sc8815_chip *chip, uint16_t *vol);
 
@@ -296,9 +298,9 @@ void sc8815_enable(sc8815_chip *chip, bool enable);
 
 void sc8815_power_switch(sc8815_chip *chip, bool on);
 
-void sc8815_otg_enable(sc8815_chip *chip, bool discharging);
+void sc8815_otg_enable(sc8815_chip *chip, bool discharge);
 
-void sc8815_en_pfm(sc8815_chip *chip,bool pfm);
+void sc8815_pfm_enable(sc8815_chip *chip,bool enable);
 
 void sc8815_adc_start(sc8815_chip *chip, bool start);
 
@@ -306,6 +308,6 @@ void sc8815_gpo_switch(sc8815_chip *chip, bool on);
 
 void sc8815_pgate_switch(sc8815_chip *chip, bool on);
 
-void sc8815_dis_ovp_enable(sc8815_chip *chip, bool enable);
+void sc8815_ovp_enable(sc8815_chip *chip, bool enable);
 
 #endif
