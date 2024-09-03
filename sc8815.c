@@ -2,13 +2,12 @@
 
 #include "sc8815.h"
 
-
 #if (CONFIG_EXTERNAL_VBAT == 0)
-#define INTERNAL_BAT_VOLTAGE 1
+#define EXTERNAL_BAT_VOLTAGE 0
 #elif (CONFIG_EXTERNAL_VBAT == 1)
-#define INTERNAL_BAT_VOLTAGE 0
+#define EXTERNAL_BAT_VOLTAGE 0
 #else
-#error "Unkown ibus ratio."
+#error "Unkown external bus voltage."
 #endif
 
 #if (CONFIG_BUS_CURRENT_RATIO == 1)
@@ -93,8 +92,8 @@ int sc8815_hw_config(sc8815_chip *chip) {
   sc8815_power_switch(chip, false);
 
   ret |=
-      sc8815_battery_setup(chip, BAT_IR_0_mR, INTERNAL_BAT_VOLTAGE, CONFIG_BATTERY_CELL_COUNT,
-                           CONFIG_BATTERY_VOLTAGE);
+      sc8815_battery_setup(chip, BAT_IR_0_mR, EXTERNAL_BAT_VOLTAGE,
+                           CONFIG_BATTERY_CELL_COUNT, CONFIG_BATTERY_VOLTAGE);
 
   ctrl0_st c0_mask = {.vinreg_ratio = 1};
   ctrl0_st c0 = {.vinreg_ratio = CONFIG_VINREG_RATIO};
@@ -153,12 +152,12 @@ int sc8815_write_reg(sc8815_chip *chip, uint8_t reg, uint8_t val) {
 }
 
 int sc8815_battery_setup(sc8815_chip *chip, ir_compensation ircomp,
-                         bool internal, battery_cell cell,
+                         bool external, battery_cell cell,
                          battery_voltage voltage) {
   vbat_set_st bat = {
       .vcell_set = voltage,
       .csel = cell,
-      .vbat_sel = internal ? 0 : 1,
+      .vbat_sel = external ? 1 : 0,
       .ircomp = ircomp,
   };
   return sc8815_write_reg(chip, REG_VBAT_SET, bat.val);

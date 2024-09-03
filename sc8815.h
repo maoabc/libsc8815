@@ -259,7 +259,7 @@ int sc8815_read_reg(sc8815_chip *chip, uint8_t reg, uint8_t *val);
 int sc8815_write_reg(sc8815_chip *chip, uint8_t reg, uint8_t val);
 
 int sc8815_battery_setup(sc8815_chip *chip, ir_compensation ircomp,
-                         bool internal, battery_cell cell,
+                         bool external, battery_cell cell,
                          battery_voltage voltage);
 
 
