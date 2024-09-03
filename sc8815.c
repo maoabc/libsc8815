@@ -2,6 +2,15 @@
 
 #include "sc8815.h"
 
+
+#if (CONFIG_EXTERNAL_VBAT == 0)
+#define INTERNAL_BAT_VOLTAGE 1
+#elif (CONFIG_EXTERNAL_VBAT == 1)
+#define INTERNAL_BAT_VOLTAGE 0
+#else
+#error "Unkown ibus ratio."
+#endif
+
 #if (CONFIG_BUS_CURRENT_RATIO == 1)
 #define IBUS_RATIO 6
 #elif (CONFIG_BUS_CURRENT_RATIO == 2)
@@ -84,7 +93,7 @@ int sc8815_hw_config(sc8815_chip *chip) {
   sc8815_power_switch(chip, false);
 
   ret |=
-      sc8815_battery_setup(chip, BAT_IR_0_mR, true, CONFIG_BATTERY_CELL_COUNT,
+      sc8815_battery_setup(chip, BAT_IR_0_mR, INTERNAL_BAT_VOLTAGE, CONFIG_BATTERY_CELL_COUNT,
                            CONFIG_BATTERY_VOLTAGE);
 
   ctrl0_st c0_mask = {.vinreg_ratio = 1};

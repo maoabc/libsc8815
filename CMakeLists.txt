@@ -11,11 +11,15 @@ add_definitions(
 )
 
 #Battery config
+
 add_definitions(
+        -DCONFIG_EXTERNAL_VBAT=0
         #0(1S), 1(2S), 2(3S), 3(4s)
         -DCONFIG_BATTERY_CELL_COUNT=3
         # 0(4.1V), 1(4.2V), 2(4.25V), 3(4.3V), 4(4.35V), 4(4.4V), 6(4.45V), 7(4.5V),
         -DCONFIG_BATTERY_VOLTAGE=1
+        #-DCONFIG_EXTERNAL_VBAT=1
+        #VBAT=Vbats_ref*(1+Rup(bats_pin)/Rdown(bats_pin))
 )
 #Ratio config
 add_definitions(
@@ -32,6 +36,7 @@ add_definitions(
         -DCONFIG_VINREG_RATIO=0
 )
 
+# external bus voltage
 add_definitions(
         -DCONFIG_EXTERNAL_VBUS=0
 
@@ -40,6 +45,7 @@ add_definitions(
         #-DCONFIG_FB_RESISTOR_UP=1000
         #-DCONFIG_FB_RESISTOR_DOWN=1000
 )
+
 
 
 set(SC8815_SRC sc8815.c)

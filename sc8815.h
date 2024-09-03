@@ -15,6 +15,10 @@
 #define CONFIG_BUS_SENSE_RESISTOR 5 /*mR*/
 #endif
 
+#ifndef CONFIG_EXTERNAL_VBAT
+#define CONFIG_EXTERNAL_VBAT 0
+#endif
+
 #ifndef CONFIG_BATTERY_CELL_COUNT
 #define CONFIG_BATTERY_CELL_COUNT 3 /*4s*/
 #endif
