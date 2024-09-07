@@ -5,7 +5,7 @@
 #if (CONFIG_EXTERNAL_VBAT == 0)
 #define EXTERNAL_BAT_VOLTAGE 0
 #elif (CONFIG_EXTERNAL_VBAT == 1)
-#define EXTERNAL_BAT_VOLTAGE 0
+#define EXTERNAL_BAT_VOLTAGE 1
 #else
 #error "Unkown external bus voltage."
 #endif
