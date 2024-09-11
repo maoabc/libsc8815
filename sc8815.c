@@ -117,6 +117,10 @@ int sc8815_hw_config(sc8815_chip *chip) {
                  .ichar_sel = 0};
   ret |= sc8815_reg_mask_value(chip, REG_CTRL1_SET, c1_mask.val, c1.val);
 
+  ctrl2_st c2_mask = {.slew_set = 3, .en_dither = 1};
+  ctrl2_st c2 = {.slew_set = 1, .en_dither = 0};
+  ret |= sc8815_reg_mask_value(chip, REG_CTRL2_SET, c2_mask.val, c2.val);
+
   ratio_st ratio_mask = {
       .vbus_ratio = 1, .vbat_mon_ratio = 1, .ibus_ratio = 3, .ibat_ratio = 1};
 
@@ -308,8 +312,8 @@ int sc8815_set_vinreg_voltage(sc8815_chip *chip, uint16_t vol) {
   return 0;
 }
 
-#define calc_current_limit(_i1, _ratio, _sense_res)                            \
-  (uint32_t)((((_i1) + 1) / 256.0f) * ((_ratio) * (10 / (_sense_res))) * 1000)
+#define calc_current_limit(_i, _ratio, _sense_res)                             \
+  (uint32_t)(((((_i) + 1) / 256.0f) * ((_ratio) * (10 / (_sense_res)))) * 1000)
 
 int sc8815_get_bus_current_limit(sc8815_chip *chip, uint16_t *cur) {
   uint8_t i;
@@ -326,7 +330,7 @@ int sc8815_get_bus_current_limit(sc8815_chip *chip, uint16_t *cur) {
 }
 
 #define convert_current_limit(_cur, _ratio, _sense_res)                        \
-  (uint8_t)((_cur) / (((_ratio) * (10 / (_sense_res)) * 1000.0f) * 256) - 1)
+  (uint8_t)(((((_cur) / 1000.0f) / ((_ratio) * (10 / (_sense_res)))) * 256) - 1)
 
 int sc8815_set_bus_current_limit(sc8815_chip *chip, uint16_t cur) {
   uint8_t i;
