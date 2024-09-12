@@ -335,8 +335,8 @@ int sc8815_get_bus_current_limit(sc8815_chip *chip, uint16_t *cur) {
 int sc8815_set_bus_current_limit(sc8815_chip *chip, uint16_t cur) {
   uint8_t i;
   int ret;
-  if (cur < 500) {
-    cur = 500;
+  if (cur < 300) {
+    cur = 300;
   }
 
   i = convert_current_limit(cur, IBUS_RATIO, CONFIG_BUS_SENSE_RESISTOR);
@@ -368,8 +368,8 @@ int sc8815_set_bat_current_limit(sc8815_chip *chip, uint16_t cur) {
   uint8_t i;
   int ret;
 
-  if (cur < 500) {
-    cur = 500;
+  if (cur < 300) {
+    cur = 300;
   }
 
   i = convert_current_limit(cur, IBAT_RATIO, CONFIG_BAT_SENSE_RESISTOR);
