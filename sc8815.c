@@ -3,11 +3,24 @@
 #include "sc8815.h"
 
 #if (CONFIG_EXTERNAL_VBAT == 0)
-#define EXTERNAL_BAT_VOLTAGE 0
-#elif (CONFIG_EXTERNAL_VBAT == 1)
-#define EXTERNAL_BAT_VOLTAGE 1
+
+#if(CONFIG_BATTERY_CELL_COUNT < 2) //For 1S and 2S battery applications (VBAT < 9V)
+#define VBAT_RATIO 5
 #else
-#error "Unkown external bus voltage."
+
+#if (CONFIG_BAT_VOLTAGE_RATIO == 0 )
+#define VBAT_RATIO 12.5
+#elif (CONFIG_BAT_VOLTAGE_RATIO == 1)
+#define VBAT_RATIO 5
+#else
+#error "Unkown vbat ratio."
+#endif
+
+#endif //end CONFIG_BATTERY_CELL_COUNT
+
+#elif (CONFIG_EXTERNAL_VBAT == 1)
+#else
+#error "Unkown external bat voltage."
 #endif
 
 #if (CONFIG_BUS_CURRENT_RATIO == 1)
@@ -16,7 +29,7 @@
 #define IBUS_RATIO 3
 #else
 #error "Unkown ibus ratio."
-#endif
+#endif //CONFIG_BUS_CURRENT_RATIO
 
 #if (CONFIG_BAT_CURRENT_RATIO == 0)
 #define IBAT_RATIO 6
@@ -24,14 +37,10 @@
 #define IBAT_RATIO 12
 #else
 #error "Unkown ibat ratio."
-#endif
+#endif //CONFIG_BAT_CURRENT_RATIO
 
-#if (CONFIG_EXTERNAL_VBUS == 1)
 
-#define FB_SEL 1
-#define VBUS_RATIO (1 + CONFIG_FB_RESISTOR_UP / CONFIG_FB_RESISTOR_DOWN)
-
-#elif (CONFIG_EXTERNAL_VBUS == 0)
+#if (CONFIG_EXTERNAL_VBUS == 0)
 
 #define FB_SEL 0
 
@@ -41,26 +50,15 @@
 #define VBUS_RATIO 5
 #else
 #error "Unkown vbus ratio."
-#endif
+#endif //CONFIG_BUS_VOLTAGE_RATIO
+
+#elif (CONFIG_EXTERNAL_VBUS == 1)
+
+#define FB_SEL 1
+#define VBUS_RATIO (1 + CONFIG_FB_RESISTOR_UP / CONFIG_FB_RESISTOR_DOWN)
 
 #else
 #error "Unkown external vbus setting."
-#endif
-
-#if (CONFIG_BAT_VOLTAGE_RATIO == 0)
-#define VBAT_RATIO 12.5
-#elif (CONFIG_BAT_VOLTAGE_RATIO == 1)
-#define VBAT_RATIO 5
-#else
-#error "Unkown vbat ratio."
-#endif
-
-#if (CONFIG_VINREG_RATIO == 0)
-#define VINREG_RATIO 100
-#elif (CONFIG_VINREG_RATIO == 1)
-#define VINREG_RATIO 40
-#else
-#error "Unkown vinreg ratio."
 #endif
 
 static inline int sc8815_reg_mask_value(sc8815_chip *chip, uint8_t reg,
@@ -92,11 +90,11 @@ int sc8815_hw_config(sc8815_chip *chip) {
   sc8815_power_switch(chip, false);
 
   ret |=
-      sc8815_battery_setup(chip, BAT_IR_0_mR, EXTERNAL_BAT_VOLTAGE,
+      sc8815_battery_setup(chip, BAT_IR_0_mR, CONFIG_EXTERNAL_VBAT,
                            CONFIG_BATTERY_CELL_COUNT, CONFIG_BATTERY_VOLTAGE);
 
   ctrl0_st c0_mask = {.vinreg_ratio = 1};
-  ctrl0_st c0 = {.vinreg_ratio = CONFIG_VINREG_RATIO};
+  ctrl0_st c0 = {.vinreg_ratio = chip->vinreg};
   ret |= sc8815_reg_mask_value(chip, REG_CTRL0_SET, c0_mask.val, c0.val);
 
   // fb_sel set
@@ -145,6 +143,7 @@ int sc8815_hw_config(sc8815_chip *chip) {
 void sc8815_init(sc8815_chip *chip, const sc8815_ops *ops, uint8_t slave_addr) {
   chip->ops = ops;
   chip->slave_addr = slave_addr;
+  chip->vinreg = 0;
 }
 
 int sc8815_read_reg(sc8815_chip *chip, uint8_t reg, uint8_t *val) {
@@ -285,6 +284,8 @@ int sc8815_set_bus_out_voltage(sc8815_chip *chip, uint16_t vol) {
 #endif
 }
 
+#define convert_vinreg_ratio(_vinreg) ((_vinreg) == 0 ? 100 : 40)
+
 int sc8815_get_vinreg_voltage(sc8815_chip *chip, uint16_t *vol) {
   uint8_t v;
   int ret;
@@ -295,7 +296,7 @@ int sc8815_get_vinreg_voltage(sc8815_chip *chip, uint16_t *vol) {
       0) {
     return ret;
   }
-  *vol = (v + 1) * VINREG_RATIO;
+  *vol = (v + 1) * convert_vinreg_ratio(chip->vinreg);
   return 0;
 }
 
@@ -303,7 +304,21 @@ int sc8815_set_vinreg_voltage(sc8815_chip *chip, uint16_t vol) {
   uint8_t v;
   int ret;
 
-  v = (vol / VINREG_RATIO) - 1;
+  uint8_t new_vinreg = chip->vinreg;
+  if (vol < 1200 && new_vinreg != 1) {
+    new_vinreg = 1;
+  } else if (new_vinreg != 0) {//Greater then 12v vinreg must be 1
+    new_vinreg = 0;
+  }
+  if (new_vinreg != chip->vinreg) {
+    ctrl0_st c0_mask = {.vinreg_ratio = 1};
+    ctrl0_st c0 = {.vinreg_ratio = new_vinreg};
+    if (sc8815_reg_mask_value(chip, REG_CTRL0_SET, c0_mask.val, c0.val) == 0) {
+      chip->vinreg = new_vinreg;
+    }
+  }
+
+  v = (vol / convert_vinreg_ratio(chip->vinreg)) - 1;
 
   if ((ret = chip->ops->i2c_write(chip->slave_addr, REG_VINREG_SET, &v, 1)) !=
       0) {

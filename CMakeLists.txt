@@ -31,9 +31,6 @@ add_definitions(
         -DCONFIG_BUS_CURRENT_RATIO=2
         #0(6x), 1(12x)
         -DCONFIG_BAT_CURRENT_RATIO=0
-
-        #0(100x), 1(40x)
-        -DCONFIG_VINREG_RATIO=0
 )
 
 # external bus voltage
