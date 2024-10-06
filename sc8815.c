@@ -111,7 +111,7 @@ int sc8815_hw_config(sc8815_chip *chip) {
                  .trickle_set = 0,
                  .fb_sel = FB_SEL,
                  .dis_term = 0,
-                 .dis_trickle = 0,
+                 .dis_trickle = 1,
                  .ichar_sel = 0};
   ret |= sc8815_reg_mask_value(chip, REG_CTRL1_SET, c1_mask.val, c1.val);
 
@@ -177,7 +177,7 @@ void sc8815_power_switch(sc8815_chip *chip, bool on) {
 }
 
 #define calc_ref_voltage(_v1, _v2, _ratio)                                     \
-  (uint32_t)((4 * (_v1) + ((_v2) >> 6) + 1) * 2 * (_ratio))
+  (uint32_t)((4 * (_v1) + ((_v2) >> 6) + 1) * (2 * (_ratio)))
 
 static inline int sc8815_get_internal_bus_ref_voltage(sc8815_chip *chip,
                                                       uint16_t *vol) {

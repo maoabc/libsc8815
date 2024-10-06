@@ -238,6 +238,14 @@ typedef union {
   };
 } mask_st;
 
+
+typedef struct{
+  uint8_t extern_vbus :1;
+  uint8_t extern_vbat :1;
+} sc8815_config_st;
+
+
+
 /**
  *
  * @param chip
