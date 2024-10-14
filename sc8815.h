@@ -75,6 +75,9 @@ typedef struct sc8815_ops {
   void (*chip_enable)(sc8815_io_state state);
 
   void (*delay_ms)(uint32_t ms);
+
+  sc8815_io_state (*get_pstop_state)(void);
+  sc8815_io_state (*get_chip_enable_state)(void);
 } sc8815_ops;
 
 typedef struct sc8815_chip {
@@ -238,13 +241,10 @@ typedef union {
   };
 } mask_st;
 
-
-typedef struct{
-  uint8_t extern_vbus :1;
-  uint8_t extern_vbat :1;
+typedef struct {
+  uint8_t extern_vbus : 1;
+  uint8_t extern_vbat : 1;
 } sc8815_config_st;
-
-
 
 /**
  *
@@ -298,6 +298,8 @@ uint16_t sc8815_read_adin_voltage(sc8815_chip *chip);
 
 void sc8815_enable(sc8815_chip *chip, bool enable);
 
+bool sc8815_is_enable(sc8815_chip *chip);
+
 void sc8815_power_switch(sc8815_chip *chip, bool on);
 
 void sc8815_otg_enable(sc8815_chip *chip, bool discharge);
@@ -311,5 +313,13 @@ void sc8815_gpo_switch(sc8815_chip *chip, bool on);
 void sc8815_pgate_switch(sc8815_chip *chip, bool on);
 
 void sc8815_ovp_enable(sc8815_chip *chip, bool enable);
+
+bool sc8815_is_active(sc8815_chip *chip);
+
+bool sc8815_is_otg_enable(sc8815_chip *chip);
+
+void sc8815_set_factory(sc8815_chip *chip);
+
+uint8_t sc8815_get_status(sc8815_chip *chip);
 
 #endif

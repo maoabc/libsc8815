@@ -4,11 +4,12 @@
 
 #if (CONFIG_EXTERNAL_VBAT == 0)
 
-#if(CONFIG_BATTERY_CELL_COUNT < 2) //For 1S and 2S battery applications (VBAT < 9V)
+#if (CONFIG_BATTERY_CELL_COUNT <                                               \
+     2) // For 1S and 2S battery applications (VBAT < 9V)
 #define VBAT_RATIO 5
 #else
 
-#if (CONFIG_BAT_VOLTAGE_RATIO == 0 )
+#if (CONFIG_BAT_VOLTAGE_RATIO == 0)
 #define VBAT_RATIO 12.5
 #elif (CONFIG_BAT_VOLTAGE_RATIO == 1)
 #define VBAT_RATIO 5
@@ -16,7 +17,7 @@
 #error "Unkown vbat ratio."
 #endif
 
-#endif //end CONFIG_BATTERY_CELL_COUNT
+#endif // end CONFIG_BATTERY_CELL_COUNT
 
 #elif (CONFIG_EXTERNAL_VBAT == 1)
 #else
@@ -29,7 +30,7 @@
 #define IBUS_RATIO 3
 #else
 #error "Unkown ibus ratio."
-#endif //CONFIG_BUS_CURRENT_RATIO
+#endif // CONFIG_BUS_CURRENT_RATIO
 
 #if (CONFIG_BAT_CURRENT_RATIO == 0)
 #define IBAT_RATIO 6
@@ -37,8 +38,7 @@
 #define IBAT_RATIO 12
 #else
 #error "Unkown ibat ratio."
-#endif //CONFIG_BAT_CURRENT_RATIO
-
+#endif // CONFIG_BAT_CURRENT_RATIO
 
 #if (CONFIG_EXTERNAL_VBUS == 0)
 
@@ -50,7 +50,7 @@
 #define VBUS_RATIO 5
 #else
 #error "Unkown vbus ratio."
-#endif //CONFIG_BUS_VOLTAGE_RATIO
+#endif // CONFIG_BUS_VOLTAGE_RATIO
 
 #elif (CONFIG_EXTERNAL_VBUS == 1)
 
@@ -116,7 +116,8 @@ int sc8815_hw_config(sc8815_chip *chip) {
   ret |= sc8815_reg_mask_value(chip, REG_CTRL1_SET, c1_mask.val, c1.val);
 
   ctrl2_st c2_mask = {.slew_set = 3, .en_dither = 1};
-  ctrl2_st c2 = {.slew_set = 1, .en_dither = 0};
+  ctrl2_st c2 = {.slew_set = 0, // 1mV/us
+                 .en_dither = 0};
   ret |= sc8815_reg_mask_value(chip, REG_CTRL2_SET, c2_mask.val, c2.val);
 
   ratio_st ratio_mask = {
@@ -169,6 +170,11 @@ int sc8815_battery_setup(sc8815_chip *chip, ir_compensation ircomp,
 void sc8815_enable(sc8815_chip *chip, bool enable) {
   chip->ops->chip_enable(enable ? SC8815_LOW : SC8815_HIGH);
   chip->ops->delay_ms(5);
+}
+
+bool sc8815_is_enable(sc8815_chip *chip) {
+  sc8815_io_state state = chip->ops->get_chip_enable_state();
+  return state == SC8815_LOW ? true : false;
 }
 
 void sc8815_power_switch(sc8815_chip *chip, bool on) {
@@ -307,7 +313,7 @@ int sc8815_set_vinreg_voltage(sc8815_chip *chip, uint16_t vol) {
   uint8_t new_vinreg = chip->vinreg;
   if (vol < 1200 && new_vinreg != 1) {
     new_vinreg = 1;
-  } else if (new_vinreg != 0) {//Greater then 12v vinreg must be 1
+  } else if (new_vinreg != 0) { // Greater then 12v vinreg must be 1
     new_vinreg = 0;
   }
   if (new_vinreg != chip->vinreg) {
@@ -509,6 +515,7 @@ void sc8815_adc_start(sc8815_chip *chip, bool start) {
   } else {
     sc8815_clear_bits(chip, REG_CTRL3_SET, c3.val);
   }
+  chip->ops->delay_ms(1);
 }
 
 void sc8815_gpo_switch(sc8815_chip *chip, bool on) {
@@ -536,4 +543,27 @@ void sc8815_ovp_enable(sc8815_chip *chip, bool enable) {
   } else {
     sc8815_set_bits(chip, REG_CTRL3_SET, c1.val);
   }
+}
+
+bool sc8815_is_active(sc8815_chip *chip) {
+  sc8815_io_state ce = chip->ops->get_chip_enable_state();
+  sc8815_io_state pstop = chip->ops->get_pstop_state();
+  return ce == SC8815_LOW && pstop == SC8815_LOW ? true : false;
+}
+
+bool sc8815_is_otg_enable(sc8815_chip *chip) {
+  ctrl0_st c0 = {.val = 0};
+  sc8815_read_reg(chip, REG_CTRL0_SET, &c0.val);
+  return c0.en_otg == 1 ? true : false;
+}
+
+void sc8815_set_factory(sc8815_chip *chip) {
+  ctrl2_st c2 = {.factory = 1};
+  sc8815_set_bits(chip, REG_CTRL2_SET, c2.val);
+}
+
+uint8_t sc8815_get_status(sc8815_chip *chip) {
+  uint8_t status = 0;
+  sc8815_read_reg(chip, REG_STATUS, &status);
+  return status;
 }
