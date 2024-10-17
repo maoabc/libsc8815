@@ -7,58 +7,6 @@
 
 #define SC8815_DEFAULT_ADDR (0x74 << 1)
 
-#ifndef CONFIG_BAT_SENSE_RESISTOR
-#define CONFIG_BAT_SENSE_RESISTOR 5 /*mR*/
-#endif
-
-#ifndef CONFIG_BUS_SENSE_RESISTOR
-#define CONFIG_BUS_SENSE_RESISTOR 5 /*mR*/
-#endif
-
-#ifndef CONFIG_EXTERNAL_VBAT
-#define CONFIG_EXTERNAL_VBAT 0
-#endif
-
-#ifndef CONFIG_BATTERY_CELL_COUNT
-#define CONFIG_BATTERY_CELL_COUNT 3 /*4s*/
-#endif
-
-#ifndef CONFIG_BATTERY_VOLTAGE
-#define CONFIG_BATTERY_VOLTAGE 1 /*4.2V*/
-#endif
-
-#ifndef CONFIG_BUS_VOLTAGE_RATIO
-#define CONFIG_BUS_VOLTAGE_RATIO 0 /*12.5x*/
-#endif
-
-#ifndef CONFIG_BAT_VOLTAGE_RATIO
-#define CONFIG_BAT_VOLTAGE_RATIO 0 /*12.5x*/
-#endif
-
-#ifndef CONFIG_BUS_CURRENT_RATIO
-#define CONFIG_BUS_CURRENT_RATIO 2 /*3x*/
-#endif
-
-#ifndef CONFIG_BAT_CURRENT_RATIO
-#define CONFIG_BAT_CURRENT_RATIO 0 /*6x*/
-#endif
-
-#ifndef CONFIG_EXTERNAL_VBUS
-#define CONFIG_EXTERNAL_VBUS 0
-#endif
-
-#if (CONFIG_EXTERNAL_VBUS == 1)
-
-#ifndef CONFIG_FB_RESISTOR_UP
-#define CONFIG_FB_RESISTOR_UP 1000 /*R*/
-#endif
-
-#ifndef CONFIG_FB_RESISTOR_DOWN
-#define CONFIG_FB_RESISTOR_DOWN 1000 /*R*/
-#endif
-
-#endif
-
 typedef enum {
   SC8815_LOW,
   SC8815_HIGH,
@@ -77,12 +25,38 @@ typedef struct sc8815_ops {
   void (*delay_ms)(uint32_t ms);
 
   sc8815_io_state (*get_pstop_state)(void);
+
   sc8815_io_state (*get_chip_enable_state)(void);
 } sc8815_ops;
 
+typedef struct {
+  struct {
+    uint8_t external_vbat : 1;
+    uint8_t ir_comp : 2;
+    uint8_t cell_number : 2;
+    uint8_t cell_voltage : 3;
+    uint8_t ibat_ratio : 1;
+    uint8_t vbat_mon_ratio : 1;
+    uint8_t sense_resistor : 4;
+  } bat;
+
+  struct {
+    uint8_t external_vbus : 1;
+    uint8_t ibus_ratio : 2;
+    uint8_t vbus_ratio : 1;
+    uint8_t sense_resistor : 4;
+    uint8_t external_vbus_ratio;
+
+  } bus;
+  uint8_t vinreg_ratio : 1;
+
+} sc8815_config_st;
+
 typedef struct sc8815_chip {
   uint8_t slave_addr;
-  uint8_t vinreg : 1;
+
+  sc8815_config_st hw_config;
+
   const struct sc8815_ops *ops;
 
 } sc8815_chip;
@@ -114,32 +88,69 @@ typedef enum {
   REG_STATUS = 0x17,
   REG_MASK = 0x19,
 
-} sc8815_regs;
+} sc8815_regs_e;
 
 typedef enum {
-  BAT_IR_0_mR = 0,
-  BAT_IR_20_mR = 1,
-  BAT_IR_40_mR = 2,
-  BAT_IR_80_mR = 3,
-} ir_compensation;
+  SC8815_BAT_IR_0_mR = 0,
+  SC8815_BAT_IR_20_mR = 1,
+  SC8815_BAT_IR_40_mR = 2,
+  SC8815_BAT_IR_80_mR = 3,
+} ir_compensation_e;
 
 typedef enum {
-  CELL_1S = 0,
-  CELL_2S = 1,
-  CELL_3S = 2,
-  CELL_4S = 3
-} battery_cell;
+  SC8815_CELL_1S = 0,
+  SC8815_CELL_2S = 1,
+  SC8815_CELL_3S = 2,
+  SC8815_CELL_4S = 3
+} battery_cell_e;
 
 typedef enum {
-  VOLTAGE_4_10 = 0,
-  VOLTAGE_4_20 = 1,
-  VOLTAGE_4_25 = 2,
-  VOLTAGE_4_30 = 3,
-  VOLTAGE_4_35 = 4,
-  VOLTAGE_4_40 = 4,
-  VOLTAGE_4_45 = 6,
-  VOLTAGE_4_50 = 7,
-} battery_voltage;
+  SC8815_VOLTAGE_4_10 = 0,
+  SC8815_VOLTAGE_4_20 = 1,
+  SC8815_VOLTAGE_4_25 = 2,
+  SC8815_VOLTAGE_4_30 = 3,
+  SC8815_VOLTAGE_4_35 = 4,
+  SC8815_VOLTAGE_4_40 = 4,
+  SC8815_VOLTAGE_4_45 = 6,
+  SC8815_VOLTAGE_4_50 = 7,
+} battery_voltage_e;
+
+// 0->not allowed, 1->6x, 2->3x, 3->not allowed
+typedef enum {
+    SC8815_IBUS_RATIO_6X = 1,
+    SC8815_IBUS_RATIO_3X = 2,
+
+} bus_current_ratio_e;
+
+// 0->6x, 1->12x
+typedef enum {
+    SC8815_IBAT_RATIO_6X = 0,
+    SC8815_IBAT_RATIO_12X = 1,
+} bat_current_ratio_e;
+
+// 0->12.5x, 1->5x
+typedef enum {
+    SC8815_VBUS_RATIO_12P5X = 0,
+    SC8815_VBUS_RATIO_5X = 1,
+
+} bus_voltage_ratio_e;
+
+// For 1S and 2S battery applications (VBAT < 9V), set this bit to 1.
+// 0->12.5x, 1->5x
+typedef enum {
+    SC8815_VBAT_MON_RATIO_12P5X = 0,
+    SC8815_VBAT_MON_RATIO_5X = 1,
+
+} bat_mon_voltage_ratio_e;
+
+// 0->100x, 1->40x
+typedef enum {
+    SC8815_VINREG_RATIO_100X = 0,
+    SC8815_VINREG_RATIO_40X = 1,
+
+} vinreg_ratio_e;
+
+
 
 typedef union {
   uint8_t val;
@@ -241,28 +252,14 @@ typedef union {
   };
 } mask_st;
 
-typedef struct {
-  uint8_t extern_vbus : 1;
-  uint8_t extern_vbat : 1;
-} sc8815_config_st;
-
-/**
- *
- * @param chip
- * @param ops
- * @param slave_addr
- */
-void sc8815_init(sc8815_chip *chip, const sc8815_ops *ops, uint8_t slave_addr);
+void sc8815_init(sc8815_chip *chip, const sc8815_ops *ops, uint8_t slave_addr,
+                 const sc8815_config_st *conf);
 
 int sc8815_hw_config(sc8815_chip *chip);
 
 int sc8815_read_reg(sc8815_chip *chip, uint8_t reg, uint8_t *val);
 
 int sc8815_write_reg(sc8815_chip *chip, uint8_t reg, uint8_t val);
-
-int sc8815_battery_setup(sc8815_chip *chip, ir_compensation ircomp,
-                         bool external, battery_cell cell,
-                         battery_voltage voltage);
 
 int sc8815_get_bus_out_voltage(sc8815_chip *chip, uint16_t *vol);
 

@@ -1,65 +1,22 @@
 
 
 #include "sc8815.h"
+#include <string.h>
 
-#if (CONFIG_EXTERNAL_VBAT == 0)
+#define GET_IBUS_RATIO(_conf) (_conf).bus.ibus_ratio == 1 ? 6 : 3
 
-#if (CONFIG_BATTERY_CELL_COUNT <                                               \
-     2) // For 1S and 2S battery applications (VBAT < 9V)
-#define VBAT_RATIO 5
-#else
+#define GET_IBAT_RATIO(_conf) (_conf).bat.ibat_ratio ? 12 : 6
 
-#if (CONFIG_BAT_VOLTAGE_RATIO == 0)
-#define VBAT_RATIO 12.5
-#elif (CONFIG_BAT_VOLTAGE_RATIO == 1)
-#define VBAT_RATIO 5
-#else
-#error "Unkown vbat ratio."
-#endif
+#define GET_VBAT_MON_RATIO(_conf) (_conf).bat.vbat_mon_ratio ? 5 : 12.5
 
-#endif // end CONFIG_BATTERY_CELL_COUNT
+#define GET_BAT_SENSE_RESISTOR(_conf) (_conf).bat.sense_resistor
 
-#elif (CONFIG_EXTERNAL_VBAT == 1)
-#else
-#error "Unkown external bat voltage."
-#endif
+#define GET_BUS_SENSE_RESISTOR(_conf) (_conf).bus.sense_resistor
 
-#if (CONFIG_BUS_CURRENT_RATIO == 1)
-#define IBUS_RATIO 6
-#elif (CONFIG_BUS_CURRENT_RATIO == 2)
-#define IBUS_RATIO 3
-#else
-#error "Unkown ibus ratio."
-#endif // CONFIG_BUS_CURRENT_RATIO
-
-#if (CONFIG_BAT_CURRENT_RATIO == 0)
-#define IBAT_RATIO 6
-#elif (CONFIG_BAT_CURRENT_RATIO == 1)
-#define IBAT_RATIO 12
-#else
-#error "Unkown ibat ratio."
-#endif // CONFIG_BAT_CURRENT_RATIO
-
-#if (CONFIG_EXTERNAL_VBUS == 0)
-
-#define FB_SEL 0
-
-#if (CONFIG_BUS_VOLTAGE_RATIO == 0)
-#define VBUS_RATIO 12.5
-#elif (CONFIG_BUS_VOLTAGE_RATIO == 1)
-#define VBUS_RATIO 5
-#else
-#error "Unkown vbus ratio."
-#endif // CONFIG_BUS_VOLTAGE_RATIO
-
-#elif (CONFIG_EXTERNAL_VBUS == 1)
-
-#define FB_SEL 1
-#define VBUS_RATIO (1 + CONFIG_FB_RESISTOR_UP / CONFIG_FB_RESISTOR_DOWN)
-
-#else
-#error "Unkown external vbus setting."
-#endif
+#define GET_BUS_VOLTAGE_RATIO(_conf)                                           \
+  ((_conf).bus.external_vbus) ? (_conf).bus.external_vbus_ratio                \
+  : (_conf).bus.vbus_ratio    ? 5                                              \
+                              : 12.5
 
 static inline int sc8815_reg_mask_value(sc8815_chip *chip, uint8_t reg,
                                         uint8_t mask, uint8_t val) {
@@ -78,6 +35,18 @@ static inline int sc8815_reg_mask_value(sc8815_chip *chip, uint8_t reg,
   return ret;
 }
 
+static int sc8815_battery_setup(sc8815_chip *chip, ir_compensation_e ircomp,
+                                uint8_t external, battery_cell_e cell,
+                                battery_voltage_e voltage) {
+  vbat_set_st bat = {
+      .vcell_set = voltage,
+      .csel = cell,
+      .vbat_sel = external ? 1 : 0,
+      .ircomp = ircomp,
+  };
+  return sc8815_write_reg(chip, REG_VBAT_SET, bat.val);
+}
+
 #define sc8815_clear_bits(_chip, _reg, _mask)                                  \
   sc8815_reg_mask_value(_chip, _reg, _mask, 0)
 
@@ -89,12 +58,18 @@ int sc8815_hw_config(sc8815_chip *chip) {
   sc8815_enable(chip, true);
   sc8815_power_switch(chip, false);
 
-  ret |=
-      sc8815_battery_setup(chip, BAT_IR_0_mR, CONFIG_EXTERNAL_VBAT,
-                           CONFIG_BATTERY_CELL_COUNT, CONFIG_BATTERY_VOLTAGE);
+  ret |= sc8815_battery_setup(
+      chip, chip->hw_config.bat.ir_comp, chip->hw_config.bat.external_vbat,
+      chip->hw_config.bat.cell_number, chip->hw_config.bat.cell_voltage);
 
-  ctrl0_st c0_mask = {.vinreg_ratio = 1};
-  ctrl0_st c0 = {.vinreg_ratio = chip->vinreg};
+  ctrl0_st c0_mask = {
+      .vinreg_ratio = 1,
+      .freq = 3,
+  };
+  ctrl0_st c0 = {
+      .vinreg_ratio = chip->hw_config.vinreg_ratio,
+      .freq = 1, // 300kHz
+  };
   ret |= sc8815_reg_mask_value(chip, REG_CTRL0_SET, c0_mask.val, c0.val);
 
   // fb_sel set
@@ -109,7 +84,7 @@ int sc8815_hw_config(sc8815_chip *chip) {
   // set fb_sel bit
   ctrl1_st c1 = {.dis_ovp = 0,
                  .trickle_set = 0,
-                 .fb_sel = FB_SEL,
+                 .fb_sel = chip->hw_config.bus.external_vbus,
                  .dis_term = 0,
                  .dis_trickle = 1,
                  .ichar_sel = 0};
@@ -124,10 +99,10 @@ int sc8815_hw_config(sc8815_chip *chip) {
       .vbus_ratio = 1, .vbat_mon_ratio = 1, .ibus_ratio = 3, .ibat_ratio = 1};
 
   ratio_st ratio = {
-      .vbus_ratio = CONFIG_BUS_VOLTAGE_RATIO,
-      .vbat_mon_ratio = CONFIG_BAT_VOLTAGE_RATIO,
-      .ibus_ratio = CONFIG_BUS_CURRENT_RATIO,
-      .ibat_ratio = CONFIG_BAT_CURRENT_RATIO,
+      .vbus_ratio = chip->hw_config.bus.vbus_ratio,
+      .vbat_mon_ratio = chip->hw_config.bat.vbat_mon_ratio,
+      .ibus_ratio = chip->hw_config.bus.ibus_ratio,
+      .ibat_ratio = chip->hw_config.bat.ibat_ratio,
   };
 
   ret |= sc8815_reg_mask_value(chip, REG_RATIO, ratio_mask.val, ratio.val);
@@ -141,10 +116,11 @@ int sc8815_hw_config(sc8815_chip *chip) {
   return ret;
 }
 
-void sc8815_init(sc8815_chip *chip, const sc8815_ops *ops, uint8_t slave_addr) {
+void sc8815_init(sc8815_chip *chip, const sc8815_ops *ops, uint8_t slave_addr,
+                 const sc8815_config_st *conf) {
   chip->ops = ops;
   chip->slave_addr = slave_addr;
-  chip->vinreg = 0;
+  memcpy(&chip->hw_config, conf, sizeof(sc8815_config_st));
 }
 
 int sc8815_read_reg(sc8815_chip *chip, uint8_t reg, uint8_t *val) {
@@ -153,18 +129,6 @@ int sc8815_read_reg(sc8815_chip *chip, uint8_t reg, uint8_t *val) {
 
 int sc8815_write_reg(sc8815_chip *chip, uint8_t reg, uint8_t val) {
   return chip->ops->i2c_write(chip->slave_addr, reg, &val, 1);
-}
-
-int sc8815_battery_setup(sc8815_chip *chip, ir_compensation ircomp,
-                         bool external, battery_cell cell,
-                         battery_voltage voltage) {
-  vbat_set_st bat = {
-      .vcell_set = voltage,
-      .csel = cell,
-      .vbat_sel = external ? 1 : 0,
-      .ircomp = ircomp,
-  };
-  return sc8815_write_reg(chip, REG_VBAT_SET, bat.val);
 }
 
 void sc8815_enable(sc8815_chip *chip, bool enable) {
@@ -201,7 +165,7 @@ static inline int sc8815_get_internal_bus_ref_voltage(sc8815_chip *chip,
   }
 
   if (v1 != 0 || v2 != 0) {
-    *vol = calc_ref_voltage(v1, v2, VBUS_RATIO);
+    *vol = calc_ref_voltage(v1, v2, GET_BUS_VOLTAGE_RATIO(chip->hw_config));
   }
   return 0;
 }
@@ -218,7 +182,7 @@ static inline int sc8815_set_internal_bus_ref_voltage(sc8815_chip *chip,
   uint8_t v1, v2;
   int ret;
 
-  split_ref_voltage(vol, v1, v2, VBUS_RATIO);
+  split_ref_voltage(vol, v1, v2, GET_BUS_VOLTAGE_RATIO(chip->hw_config));
 
   if ((ret = chip->ops->i2c_write(chip->slave_addr, REG_VBUSREF_I_SET, &v1,
                                   1)) != 0) {
@@ -250,7 +214,7 @@ static inline int sc8815_get_external_bus_ref_voltage(sc8815_chip *chip,
   }
 
   if (v1 != 0 || v2 != 0) {
-    *vol = calc_ref_voltage(v1, v2, VBUS_RATIO);
+    *vol = calc_ref_voltage(v1, v2, GET_BUS_VOLTAGE_RATIO(chip->hw_config));
   }
   return 0;
 }
@@ -260,7 +224,7 @@ static inline int sc8815_set_external_bus_ref_voltage(sc8815_chip *chip,
   uint8_t v1, v2;
   int ret;
 
-  split_ref_voltage(vol, v1, v2, VBUS_RATIO);
+  split_ref_voltage(vol, v1, v2, GET_BUS_VOLTAGE_RATIO(chip->hw_config));
 
   if ((ret = chip->ops->i2c_write(chip->slave_addr, REG_VBUSREF_E_SET, &v1,
                                   1)) != 0) {
@@ -275,19 +239,19 @@ static inline int sc8815_set_external_bus_ref_voltage(sc8815_chip *chip,
 }
 
 int sc8815_get_bus_out_voltage(sc8815_chip *chip, uint16_t *vol) {
-#if (CONFIG_EXTERNAL_VBUS == 0)
-  return sc8815_get_internal_bus_ref_voltage(chip, vol);
-#else
-  return sc8815_get_external_bus_ref_voltage(chip, vol);
-#endif
+  if (chip->hw_config.bus.external_vbus) {
+    return sc8815_get_external_bus_ref_voltage(chip, vol);
+  } else {
+    return sc8815_get_internal_bus_ref_voltage(chip, vol);
+  }
 }
 
 int sc8815_set_bus_out_voltage(sc8815_chip *chip, uint16_t vol) {
-#if (CONFIG_EXTERNAL_VBUS == 0)
-  return sc8815_set_internal_bus_ref_voltage(chip, vol);
-#else
-  return sc8815_set_external_bus_ref_voltage(chip, vol);
-#endif
+  if (chip->hw_config.bus.external_vbus) {
+    return sc8815_set_external_bus_ref_voltage(chip, vol);
+  } else {
+    return sc8815_set_internal_bus_ref_voltage(chip, vol);
+  }
 }
 
 #define convert_vinreg_ratio(_vinreg) ((_vinreg) == 0 ? 100 : 40)
@@ -302,7 +266,7 @@ int sc8815_get_vinreg_voltage(sc8815_chip *chip, uint16_t *vol) {
       0) {
     return ret;
   }
-  *vol = (v + 1) * convert_vinreg_ratio(chip->vinreg);
+  *vol = (v + 1) * convert_vinreg_ratio(chip->hw_config.vinreg_ratio);
   return 0;
 }
 
@@ -310,21 +274,21 @@ int sc8815_set_vinreg_voltage(sc8815_chip *chip, uint16_t vol) {
   uint8_t v;
   int ret;
 
-  uint8_t new_vinreg = chip->vinreg;
+  uint8_t new_vinreg = chip->hw_config.vinreg_ratio;
   if (vol < 1200 && new_vinreg != 1) {
     new_vinreg = 1;
-  } else if (new_vinreg != 0) { // Greater then 12v vinreg must be 1
+  } else if (new_vinreg != 0) { // Greater then 12v vinreg_ratio_dyn must be 1
     new_vinreg = 0;
   }
-  if (new_vinreg != chip->vinreg) {
+  if (new_vinreg != chip->hw_config.vinreg_ratio) {
     ctrl0_st c0_mask = {.vinreg_ratio = 1};
     ctrl0_st c0 = {.vinreg_ratio = new_vinreg};
     if (sc8815_reg_mask_value(chip, REG_CTRL0_SET, c0_mask.val, c0.val) == 0) {
-      chip->vinreg = new_vinreg;
+      chip->hw_config.vinreg_ratio = new_vinreg;
     }
   }
 
-  v = (vol / convert_vinreg_ratio(chip->vinreg)) - 1;
+  v = (vol / convert_vinreg_ratio(chip->hw_config.vinreg_ratio)) - 1;
 
   if ((ret = chip->ops->i2c_write(chip->slave_addr, REG_VINREG_SET, &v, 1)) !=
       0) {
@@ -345,7 +309,8 @@ int sc8815_get_bus_current_limit(sc8815_chip *chip, uint16_t *cur) {
       0) {
     return ret;
   }
-  *cur = calc_current_limit(i, IBUS_RATIO, CONFIG_BUS_SENSE_RESISTOR);
+  *cur = calc_current_limit(i, GET_IBUS_RATIO(chip->hw_config),
+                            GET_BUS_SENSE_RESISTOR(chip->hw_config));
 
   return 0;
 }
@@ -360,7 +325,8 @@ int sc8815_set_bus_current_limit(sc8815_chip *chip, uint16_t cur) {
     cur = 300;
   }
 
-  i = convert_current_limit(cur, IBUS_RATIO, CONFIG_BUS_SENSE_RESISTOR);
+  i = convert_current_limit(cur, GET_IBUS_RATIO(chip->hw_config),
+                            GET_BUS_SENSE_RESISTOR(chip->hw_config));
 
   if ((ret = chip->ops->i2c_write(chip->slave_addr, REG_IBUS_LIM_SET, &i, 1)) !=
       0) {
@@ -369,7 +335,6 @@ int sc8815_set_bus_current_limit(sc8815_chip *chip, uint16_t cur) {
 
   return 0;
 }
-
 int sc8815_get_bat_current_limit(sc8815_chip *chip, uint16_t *cur) {
   uint8_t i;
   int ret;
@@ -380,7 +345,8 @@ int sc8815_get_bat_current_limit(sc8815_chip *chip, uint16_t *cur) {
       0) {
     return ret;
   }
-  *cur = calc_current_limit(i, IBAT_RATIO, CONFIG_BAT_SENSE_RESISTOR);
+  *cur = calc_current_limit(i, GET_IBAT_RATIO(chip->hw_config),
+                            GET_BAT_SENSE_RESISTOR(chip->hw_config));
 
   return 0;
 }
@@ -393,7 +359,8 @@ int sc8815_set_bat_current_limit(sc8815_chip *chip, uint16_t cur) {
     cur = 300;
   }
 
-  i = convert_current_limit(cur, IBAT_RATIO, CONFIG_BAT_SENSE_RESISTOR);
+  i = convert_current_limit(cur, GET_IBAT_RATIO(chip->hw_config),
+                            GET_BAT_SENSE_RESISTOR(chip->hw_config));
 
   if ((ret = chip->ops->i2c_write(chip->slave_addr, REG_IBAT_LIM_SET, &i, 1)) !=
       0) {
@@ -416,7 +383,7 @@ uint16_t sc8815_read_bus_voltage(sc8815_chip *chip) {
     return 0;
   }
   if (v1 != 0 || v2 != 0) {
-    return calc_adc_voltage(v1, v2, VBUS_RATIO);
+    return calc_adc_voltage(v1, v2, GET_BUS_VOLTAGE_RATIO(chip->hw_config));
   }
   return 0;
 }
@@ -431,7 +398,7 @@ uint16_t sc8815_read_bat_voltage(sc8815_chip *chip) {
     return 0;
   }
   if (v1 != 0 || v2 != 0) {
-    return calc_adc_voltage(v1, v2, VBAT_RATIO);
+    return calc_adc_voltage(v1, v2, GET_VBAT_MON_RATIO(chip->hw_config));
   }
 
   return 0;
@@ -451,7 +418,8 @@ uint16_t sc8815_read_bus_current(sc8815_chip *chip) {
     return 0;
   }
   if (i1 != 0 || i2 != 0) {
-    return calc_adc_current(i1, i2, IBUS_RATIO, CONFIG_BUS_SENSE_RESISTOR);
+    return calc_adc_current(i1, i2, GET_IBUS_RATIO(chip->hw_config),
+                            GET_BUS_SENSE_RESISTOR(chip->hw_config));
   }
   return 0;
 }
@@ -466,7 +434,8 @@ uint16_t sc8815_read_bat_current(sc8815_chip *chip) {
     return 0;
   }
   if (i1 != 0 || i2 != 0) {
-    return calc_adc_current(i1, i2, IBAT_RATIO, CONFIG_BAT_SENSE_RESISTOR);
+    return calc_adc_current(i1, i2, GET_IBAT_RATIO(chip->hw_config),
+                            GET_BAT_SENSE_RESISTOR(chip->hw_config));
   }
 
   return 0;
