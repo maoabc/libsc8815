@@ -132,17 +132,19 @@ int sc8815_write_reg(sc8815_chip *chip, uint8_t reg, uint8_t val) {
 }
 
 void sc8815_enable(sc8815_chip *chip, bool enable) {
-  chip->ops->chip_enable(enable ? SC8815_LOW : SC8815_HIGH);
+  chip->ops->control_func(SC8815_SET_CE,
+                          (void *)(enable ? SC8815_LOW : SC8815_HIGH));
   chip->ops->delay_ms(5);
 }
 
 bool sc8815_is_enable(sc8815_chip *chip) {
-  sc8815_io_state state = chip->ops->get_chip_enable_state();
+  sc8815_io_state state = chip->ops->control_func(SC8815_GET_CE, NULL);
   return state == SC8815_LOW ? true : false;
 }
 
 void sc8815_power_switch(sc8815_chip *chip, bool on) {
-  chip->ops->pstop_switch(on ? SC8815_LOW : SC8815_HIGH);
+  chip->ops->control_func(SC8815_SET_PSTOP,
+                          (void *)(on ? SC8815_LOW : SC8815_HIGH));
   chip->ops->delay_ms(5);
 }
 
@@ -515,8 +517,8 @@ void sc8815_ovp_enable(sc8815_chip *chip, bool enable) {
 }
 
 bool sc8815_is_active(sc8815_chip *chip) {
-  sc8815_io_state ce = chip->ops->get_chip_enable_state();
-  sc8815_io_state pstop = chip->ops->get_pstop_state();
+  sc8815_io_state ce = chip->ops->control_func(SC8815_GET_CE, NULL);
+  sc8815_io_state pstop = chip->ops->control_func(SC8815_GET_PSTOP, NULL);
   return ce == SC8815_LOW && pstop == SC8815_LOW ? true : false;
 }
 

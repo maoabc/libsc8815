@@ -12,21 +12,23 @@ typedef enum {
   SC8815_HIGH,
 } sc8815_io_state;
 
+typedef enum {
+  SC8815_SET_PSTOP,
+  SC8815_SET_CE,
+  SC8815_GET_PSTOP,
+  SC8815_GET_CE,
+} sc8815_ctrl_msg;
+
 /*SC8815 CE PSTOP I2C operations*/
 typedef struct sc8815_ops {
   int (*i2c_read)(uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len);
 
   int (*i2c_write)(uint8_t addr, uint8_t reg, const uint8_t *buf, uint16_t len);
 
-  void (*pstop_switch)(sc8815_io_state state);
-
-  void (*chip_enable)(sc8815_io_state state);
-
   void (*delay_ms)(uint32_t ms);
 
-  sc8815_io_state (*get_pstop_state)(void);
+  int (*control_func)(sc8815_ctrl_msg msg, void *arg);
 
-  sc8815_io_state (*get_chip_enable_state)(void);
 } sc8815_ops;
 
 typedef struct {
@@ -117,40 +119,38 @@ typedef enum {
 
 // 0->not allowed, 1->6x, 2->3x, 3->not allowed
 typedef enum {
-    SC8815_IBUS_RATIO_6X = 1,
-    SC8815_IBUS_RATIO_3X = 2,
+  SC8815_IBUS_RATIO_6X = 1,
+  SC8815_IBUS_RATIO_3X = 2,
 
 } bus_current_ratio_e;
 
 // 0->6x, 1->12x
 typedef enum {
-    SC8815_IBAT_RATIO_6X = 0,
-    SC8815_IBAT_RATIO_12X = 1,
+  SC8815_IBAT_RATIO_6X = 0,
+  SC8815_IBAT_RATIO_12X = 1,
 } bat_current_ratio_e;
 
 // 0->12.5x, 1->5x
 typedef enum {
-    SC8815_VBUS_RATIO_12P5X = 0,
-    SC8815_VBUS_RATIO_5X = 1,
+  SC8815_VBUS_RATIO_12P5X = 0,
+  SC8815_VBUS_RATIO_5X = 1,
 
 } bus_voltage_ratio_e;
 
 // For 1S and 2S battery applications (VBAT < 9V), set this bit to 1.
 // 0->12.5x, 1->5x
 typedef enum {
-    SC8815_VBAT_MON_RATIO_12P5X = 0,
-    SC8815_VBAT_MON_RATIO_5X = 1,
+  SC8815_VBAT_MON_RATIO_12P5X = 0,
+  SC8815_VBAT_MON_RATIO_5X = 1,
 
 } bat_mon_voltage_ratio_e;
 
 // 0->100x, 1->40x
 typedef enum {
-    SC8815_VINREG_RATIO_100X = 0,
-    SC8815_VINREG_RATIO_40X = 1,
+  SC8815_VINREG_RATIO_100X = 0,
+  SC8815_VINREG_RATIO_40X = 1,
 
 } vinreg_ratio_e;
-
-
 
 typedef union {
   uint8_t val;
